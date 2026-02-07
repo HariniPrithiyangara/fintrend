@@ -1,5 +1,5 @@
 // ============================================
-// FIREBASE CONFIGURATION - ROBUST PRO VERSION
+// FIREBASE CONFIGURATION - SIMPLIFIED PROD
 // ============================================
 
 const admin = require('firebase-admin');
@@ -8,17 +8,17 @@ const logger = require('../utils/logger');
 let db = null;
 let initialized = false;
 
-// Helper to fix PEM keys from any source
+// Helper to fix PEM keys
 const fixPrivateKey = (key) => {
   if (!key) return null;
   let fixed = key.trim();
 
-  // Remove wrapping quotes
+  // Remove wrapping quotes if they exist
   if ((fixed.startsWith('"') && fixed.endsWith('"')) || (fixed.startsWith("'") && fixed.endsWith("'"))) {
     fixed = fixed.substring(1, fixed.length - 1);
   }
 
-  // Handle escaped newlines
+  // Handle escaped newlines (e.g. from Render UI)
   fixed = fixed.replace(/\\n/g, '\n');
 
   // Ensure header/footer
@@ -36,51 +36,29 @@ const initializeFirebase = () => {
 
   try {
     let credential = null;
-    const saVar = process.env.FIREBASE_SERVICE_ACCOUNT;
 
-    // 1. Try FIREBASE_SERVICE_ACCOUNT (JSON or Base64)
-    if (saVar) {
-      try {
-        let jsonStr = saVar.trim();
-        // Check if it's Base64 (doesn't start with {)
-        if (!jsonStr.startsWith('{')) {
-          logger.info('📦 Detecting Base64 Service Account...');
-          jsonStr = Buffer.from(jsonStr, 'base64').toString('utf8');
-        }
+    // 1. Try Individual Fields (Production Standard)
+    const projectId = process.env.FIRESTORE_PROJECT_ID;
+    const clientEmail = process.env.FIRESTORE_CLIENT_EMAIL;
+    const privateKey = process.env.FIRESTORE_PRIVATE_KEY;
 
-        const sa = JSON.parse(jsonStr);
-        if (sa.private_key) sa.private_key = fixPrivateKey(sa.private_key);
-        credential = admin.credential.cert(sa);
-        logger.info('✅ Loaded credentials from FIREBASE_SERVICE_ACCOUNT');
-      } catch (e) {
-        logger.error(`❌ FIREBASE_SERVICE_ACCOUNT Error: ${e.message}`);
-      }
+    if (projectId && clientEmail && privateKey) {
+      credential = admin.credential.cert({
+        projectId,
+        clientEmail,
+        privateKey: fixPrivateKey(privateKey)
+      });
+      logger.info('✅ Loaded credentials from individual FIRESTORE_* variables');
     }
 
-    // 2. Try Individual Fields (Standard Fallback)
-    if (!credential) {
-      const projectId = process.env.FIRESTORE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID;
-      const clientEmail = process.env.FIRESTORE_CLIENT_EMAIL || process.env.FIREBASE_CLIENT_EMAIL;
-      const privateKey = process.env.FIRESTORE_PRIVATE_KEY || process.env.FIREBASE_PRIVATE_KEY;
-
-      if (projectId && clientEmail && privateKey) {
-        credential = admin.credential.cert({
-          projectId,
-          clientEmail,
-          privateKey: fixPrivateKey(privateKey)
-        });
-        logger.info('✅ Loaded credentials from individual FIRESTORE_* variables');
-      }
-    }
-
-    // 3. Fallback to local file
+    // 2. Fallback to local file (Development)
     if (!credential) {
       try {
         const serviceAccount = require('../../serviceAccountKey.json');
         credential = admin.credential.cert(serviceAccount);
         logger.info('✅ Loaded credentials from serviceAccountKey.json');
       } catch (err) {
-        throw new Error('Missing Firebase Credentials. Set FIREBASE_SERVICE_ACCOUNT or individual fields.');
+        throw new Error('Missing Firebase Credentials. Set FIRESTORE_PROJECT_ID, FIRESTORE_CLIENT_EMAIL, and FIRESTORE_PRIVATE_KEY.');
       }
     }
 
