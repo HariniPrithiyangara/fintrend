@@ -103,7 +103,7 @@ module.exports = {
       await database.collection(process.env.FIRESTORE_COLLECTION || 'articles').limit(1).get();
       return true;
     } catch (e) {
-      logger.error('❌ Firestore connection failed:', e.message);
+      logger.error('❌ Firestore connection failed DETAILS:', e);
       return false;
     }
   },
