@@ -16,6 +16,7 @@ const initializeFirebase = () => {
   }
 
   try {
+    let credential;
     // ---------------------------------------------------------
     // OPTIMIZED FOR PRODUCTION: Multi-source Credential Loading
     // ---------------------------------------------------------
