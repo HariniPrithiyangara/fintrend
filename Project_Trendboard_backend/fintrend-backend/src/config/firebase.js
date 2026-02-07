@@ -1,28 +1,21 @@
 // ============================================
-// FIREBASE CONFIGURATION - STRICT ENV ONLY
+// FIREBASE CONFIGURATION - BASE64 & ENV
 // ============================================
 
-require('dotenv').config(); // Ensure env vars are loaded
+require('dotenv').config();
 const admin = require('firebase-admin');
 const logger = require('../utils/logger');
 
 let db = null;
 let initialized = false;
 
-// Helper to fix PEM keys (handles newlines and quotes)
 const fixPrivateKey = (key) => {
   if (!key) return null;
   let fixed = key.trim();
-
-  // Remove wrapping quotes if they exist
   if ((fixed.startsWith('"') && fixed.endsWith('"')) || (fixed.startsWith("'") && fixed.endsWith("'"))) {
     fixed = fixed.substring(1, fixed.length - 1);
   }
-
-  // Handle escaped newlines (common in Render/Vercel)
   fixed = fixed.replace(/\\n/g, '\n');
-
-  // Ensure header/footer
   if (!fixed.includes('-----BEGIN PRIVATE KEY-----')) {
     fixed = `-----BEGIN PRIVATE KEY-----\n${fixed}`;
   }
@@ -36,25 +29,39 @@ const initializeFirebase = () => {
   if (initialized) return db;
 
   try {
-    // 1. Load variables from Environment ONLY
-    const projectId = process.env.FIRESTORE_PROJECT_ID;
-    const clientEmail = process.env.FIRESTORE_CLIENT_EMAIL;
-    const privateKey = process.env.FIRESTORE_PRIVATE_KEY;
+    let credential;
 
-    // 2. Debug Logging (Privacy Safe)
-    if (!projectId) logger.warn('⚠️ FIRESTORE_PROJECT_ID is missing');
-    if (!clientEmail) logger.warn('⚠️ FIRESTORE_CLIENT_EMAIL is missing');
-    if (!privateKey) logger.warn('⚠️ FIRESTORE_PRIVATE_KEY is missing');
-
-    if (!projectId || !clientEmail || !privateKey) {
-      throw new Error('Missing one or more required Firebase environment variables');
+    // 1. Check for Base64 Encoded JSON (Most robust for Render)
+    if (process.env.FIREBASE_SERVICE_ACCOUNT_BASE64) {
+      try {
+        const jsonStr = Buffer.from(process.env.FIREBASE_SERVICE_ACCOUNT_BASE64, 'base64').toString('utf8');
+        const serviceAccount = JSON.parse(jsonStr);
+        credential = admin.credential.cert(serviceAccount);
+        logger.info('✅ Initialized using FIREBASE_SERVICE_ACCOUNT_BASE64');
+      } catch (e) {
+        logger.warn('⚠️ Failed to decode FIREBASE_SERVICE_ACCOUNT_BASE64: ' + e.message);
+      }
     }
 
-    const credential = admin.credential.cert({
-      projectId,
-      clientEmail,
-      privateKey: fixPrivateKey(privateKey)
-    });
+    // 2. Fallback to Individual Env Vars
+    if (!credential) {
+      const projectId = process.env.FIRESTORE_PROJECT_ID;
+      const clientEmail = process.env.FIRESTORE_CLIENT_EMAIL;
+      const privateKey = process.env.FIRESTORE_PRIVATE_KEY;
+
+      if (projectId && clientEmail && privateKey) {
+        credential = admin.credential.cert({
+          projectId,
+          clientEmail,
+          privateKey: fixPrivateKey(privateKey)
+        });
+        logger.info('✅ Initialized using individual FIRESTORE_* variables');
+      }
+    }
+
+    if (!credential) {
+      throw new Error('❌ Missing Firebase Credentials. Please set FIREBASE_SERVICE_ACCOUNT_BASE64 or FIRESTORE_* variables.');
+    }
 
     if (!admin.apps.length) {
       admin.initializeApp({ credential });
@@ -63,7 +70,6 @@ const initializeFirebase = () => {
     db = admin.firestore();
     db.settings({ ignoreUndefinedProperties: true, merge: true });
     initialized = true;
-    logger.info(`🔥 Firebase initialized for project: ${projectId}`);
     return db;
 
   } catch (error) {
