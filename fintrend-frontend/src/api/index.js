@@ -5,9 +5,18 @@
 
 import axios from 'axios';
 
-// Get API URL from environment
-// Get API URL from environment or default to Render production
-const API_URL = import.meta.env.VITE_API_URL || 'https://fintrend-12.onrender.com/api';
+// Define API URLs
+const API_LOCAL = 'http://localhost:5000/api';
+const API_PROD = 'https://fintrend-12.onrender.com/api';
+
+// Logic: Use Env Var -> Then Dev/Prod Logic -> Fallback
+let API_URL = import.meta.env.VITE_API_URL;
+
+if (!API_URL) {
+  API_URL = import.meta.env.MODE === 'development' ? API_LOCAL : API_PROD;
+}
+
+console.log('🌐 API Target:', API_URL);
 
 if (!API_URL) {
   console.error('❌ VITE_API_URL is missing in .env file!');
