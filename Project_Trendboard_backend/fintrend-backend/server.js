@@ -116,12 +116,14 @@ async function startServer() {
     logger.info('🔥 Initializing Firebase...');
     initializeFirebase();
 
-    // Test connection
-    const connected = await testConnection();
-    if (!connected) {
-      throw new Error('Firestore connection failed');
+    // 4. Test Firestore Connection (Non-blocking)
+    const isDbConnected = await testConnection();
+    if (isDbConnected) {
+      logger.info('✅ Firestore connected successfully');
+    } else {
+      logger.warn('⚠️ Firestore connection failed during startup. API endpoints may fail until resolved.');
+      // We continue startup instead of crashing
     }
-
     // Run initial fetch if configured (non-blocking)
     initialFetchIfRequired().catch(err => logger.error('Initial fetch failed:', err));
 
