@@ -11,63 +11,57 @@ let initialized = false;
 
 const initializeFirebase = () => {
   if (initialized) {
-    logger.debug('Firebase already initialized');
     return db;
   }
 
   try {
-    let credential;
+    let credential = null;
+
     // ---------------------------------------------------------
     // OPTIMIZED FOR PRODUCTION: Multi-source Credential Loading
     // ---------------------------------------------------------
 
     // 1. Check for full service account JSON (Best for Render/Vercel)
-    const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT;
-
-    // 2. Fallback to individual fields
-    const projectId = process.env.FIRESTORE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID;
-    const privateKey = process.env.FIRESTORE_PRIVATE_KEY || process.env.FIREBASE_PRIVATE_KEY;
-    const clientEmail = process.env.FIRESTORE_CLIENT_EMAIL || process.env.FIREBASE_CLIENT_EMAIL;
+    let serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT;
 
     if (serviceAccountJson) {
       try {
+        // Remove possible wrapping quotes and trim
+        serviceAccountJson = serviceAccountJson.trim();
+        if (serviceAccountJson.startsWith("'") || serviceAccountJson.startsWith('"')) {
+          serviceAccountJson = serviceAccountJson.substring(1, serviceAccountJson.length - 1);
+        }
+
         const sa = JSON.parse(serviceAccountJson);
-        // Ensure private key in JSON is correctly formatted
         if (sa.private_key) sa.private_key = sa.private_key.replace(/\\n/g, '\n');
         credential = admin.credential.cert(sa);
         logger.info('🔑 Loaded credentials from FIREBASE_SERVICE_ACCOUNT JSON');
       } catch (e) {
-        logger.error('❌ Failed to parse FIREBASE_SERVICE_ACCOUNT JSON:', e.message);
+        logger.error(`❌ Failed to parse FIREBASE_SERVICE_ACCOUNT JSON: ${e.message}`);
       }
     }
 
-    if (!credential && projectId && privateKey && clientEmail) {
-      // Robust PEM Parsing: Fixes common "Invalid PEM formatted message" errors
-      let processedKey = privateKey.trim();
+    // 2. Fallback to individual fields
+    if (!credential) {
+      const projectId = process.env.FIRESTORE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID;
+      const privateKey = process.env.FIRESTORE_PRIVATE_KEY || process.env.FIREBASE_PRIVATE_KEY;
+      const clientEmail = process.env.FIRESTORE_CLIENT_EMAIL || process.env.FIREBASE_CLIENT_EMAIL;
 
-      // Remove wrapping quotes if they exist
-      if ((processedKey.startsWith('"') && processedKey.endsWith('"')) ||
-        (processedKey.startsWith("'") && processedKey.endsWith("'"))) {
-        processedKey = processedKey.substring(1, processedKey.length - 1);
+      if (projectId && privateKey && clientEmail) {
+        let processedKey = privateKey.trim();
+        processedKey = processedKey.replace(/\\n/g, '\n');
+
+        if (!processedKey.includes('-----BEGIN PRIVATE KEY-----')) {
+          processedKey = `-----BEGIN PRIVATE KEY-----\n${processedKey}\n-----END PRIVATE KEY-----`;
+        }
+
+        credential = admin.credential.cert({
+          projectId,
+          privateKey: processedKey,
+          clientEmail
+        });
+        logger.info('🔑 Loaded credentials from individual environment variables');
       }
-
-      // Handle escaped newlines
-      processedKey = processedKey.replace(/\\n/g, '\n');
-
-      // Final verification: ensure header and footer exist
-      if (!processedKey.includes('-----BEGIN PRIVATE KEY-----')) {
-        processedKey = `-----BEGIN PRIVATE KEY-----\n${processedKey}`;
-      }
-      if (!processedKey.includes('-----END PRIVATE KEY-----')) {
-        processedKey = `${processedKey}\n-----END PRIVATE KEY-----`;
-      }
-
-      credential = admin.credential.cert({
-        projectId,
-        privateKey: processedKey,
-        clientEmail
-      });
-      logger.info('🔑 Loaded credentials from individual environment variables');
     }
 
     // 3. Last fallback: Local file (Development only)
@@ -77,7 +71,7 @@ const initializeFirebase = () => {
         credential = admin.credential.cert(serviceAccount);
         logger.info('🏠 Loaded credentials from local serviceAccountKey.json');
       } catch (err) {
-        throw new Error('❌ Missing Firebase Credentials: Provide FIREBASE_SERVICE_ACCOUNT or individual fields.');
+        throw new Error('❌ Missing Firebase Credentials: Set FIREBASE_SERVICE_ACCOUNT or individual fields.');
       }
     }
 
@@ -86,16 +80,13 @@ const initializeFirebase = () => {
     }
 
     db = admin.firestore();
-    db.settings({
-      ignoreUndefinedProperties: true,
-      merge: true
-    });
+    db.settings({ ignoreUndefinedProperties: true, merge: true });
 
     initialized = true;
     logger.info('✅ Firebase initialized successfully');
     return db;
   } catch (error) {
-    logger.error('❌ Firebase initialization failed:', error);
+    logger.error('❌ Firebase initialization failed:', error.message);
     throw error;
   }
 };
@@ -113,7 +104,7 @@ const testConnection = async () => {
     logger.info('✅ Firestore connection verified');
     return true;
   } catch (error) {
-    logger.error('❌ Firestore connection failed:', error);
+    logger.error('❌ Firestore connection failed:', error.message);
     return false;
   }
 };
@@ -127,7 +118,7 @@ const shutdown = async () => {
       logger.info('✅ Firebase shutdown complete');
     }
   } catch (error) {
-    logger.error('❌ Firebase shutdown error:', error);
+    logger.error('❌ Firebase shutdown error:', error.message);
   }
 };
 
