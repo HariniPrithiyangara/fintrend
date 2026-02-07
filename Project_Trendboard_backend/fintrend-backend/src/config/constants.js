@@ -33,7 +33,7 @@ module.exports = {
   SERVER: {
     PORT: getEnvNumber('PORT', 5000),
     NODE_ENV: process.env.NODE_ENV || 'production',
-    FRONTEND_URL: getEnv('FRONTEND_URL', 'http://localhost:5173'),
+    FRONTEND_URL: process.env.FRONTEND_URL ? process.env.FRONTEND_URL.split(',') : ['http://localhost:5173'],
     SHUTDOWN_TIMEOUT_MS: getEnvNumber('SHUTDOWN_TIMEOUT_MS', 10000),
     IS_DEV: (process.env.NODE_ENV || 'production') === 'development',
     IS_PROD: (process.env.NODE_ENV || 'production') === 'production'
