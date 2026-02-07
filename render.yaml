@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: fintrend-backend
+    env: node
+    rootDir: Project_Trendboard_backend/fintrend-backend
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: NODE_ENV
+        value: production
