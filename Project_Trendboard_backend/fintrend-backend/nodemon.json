@@ -1,0 +1,38 @@
+{
+  "watch": [
+    "controllers/",
+    "routes/",
+    "services/",
+    "config/",
+    "middleware/",
+    "models/",
+    "utils/"
+  ],
+  "ignore": [
+    "logs/",
+    "*.log",
+    "node_modules/",
+    ".git/",
+    "scripts/",
+    "jobs/newsCron.js"
+  ],
+  "ext": "js,json",
+  "delay": "1000",
+  "verbose": true,
+  "legacyWatch": false,
+  "execMap": {
+    "js": "node"
+  },
+  "env": {
+    "NODE_ENV": "development",
+    "DEBUG": "express:*"
+  },
+  "events": {
+    "start": "echo '🚀 Server starting...'",
+    "crash": "echo '💥 Server crashed - waiting for changes...'",
+    "restart": "echo '🔄 Restarting server...'",
+    "exit": "echo '👋 Server stopped'"
+  },
+  "colours": true,
+  "stdout": true
+}

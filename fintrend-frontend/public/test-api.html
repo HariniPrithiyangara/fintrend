@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>API Connection Test</title>
+    <style>
+        body { font-family: monospace; padding: 20px; background: #1a1a1a; color: #0f0; }
+        .test { margin: 20px 0; padding: 15px; background: #2a2a2a; border-left: 4px solid #0f0; }
+        .error { border-left-color: #f00; color: #f00; }
+        .success { border-left-color: #0f0; color: #0f0; }
+        pre { background: #000; padding: 10px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>🔍 Frontend-Backend Connection Test</h1>
+    <div id="results"></div>
+
+    <script>
+        const API_URL = 'http://localhost:5000/api';
+        const results = document.getElementById('results');
+
+        function log(title, data, isError = false) {
+            const div = document.createElement('div');
+            div.className = isError ? 'test error' : 'test success';
+            div.innerHTML = `<h3>${title}</h3><pre>${JSON.stringify(data, null, 2)}</pre>`;
+            results.appendChild(div);
+        }
+
+        async function runTests() {
+            try {
+                // Test 1: Direct fetch
+                log('Test 1: Fetching articles...', { status: 'loading' });
+                const response = await fetch(`${API_URL}/news/articles?limit=5`);
+                const json = await response.json();
+                
+                log('Test 1 Result', {
+                    status: response.status,
+                    hasSuccess: 'success' in json,
+                    hasData: 'data' in json,
+                    dataType: typeof json.data,
+                    isArray: Array.isArray(json.data),
+                    count: json.data?.length,
+                    sample: json.data?.[0]?.title
+                });
+
+                // Test 2: Category stats
+                const statsResponse = await fetch(`${API_URL}/news/categories`);
+                const statsJson = await statsResponse.json();
+                
+                log('Test 2: Category Stats', {
+                    stats: statsJson.data,
+                    totalArticles: Object.values(statsJson.data || {}).reduce((a, b) => a + b, 0)
+                });
+
+                // Test 3: Axios simulation
+                log('Test 3: Simulating Axios Interceptor', {
+                    original: json,
+                    extracted: json.data,
+                    willWork: Array.isArray(json.data) && json.data.length > 0
+                });
+
+                if (Array.isArray(json.data) && json.data.length > 0) {
+                    log('✅ CONCLUSION', {
+                        message: 'Backend is working correctly',
+                        articlesAvailable: json.data.length,
+                        recommendation: 'Restart frontend dev server: Ctrl+C then npm run dev'
+                    });
+                } else {
+                    log('❌ PROBLEM', {
+                        message: 'Backend not returning articles',
+                        data: json
+                    }, true);
+                }
+
+            } catch (error) {
+                log('❌ ERROR', {
+                    message: error.message,
+                    recommendation: 'Check if backend is running on port 5000'
+                }, true);
+            }
+        }
+
+        runTests();
+    </script>
+</body>
+</html>

@@ -1,0 +1,130 @@
+{
+  "name": "fintrend-backend",
+  "version": "1.0.0",
+  "description": "AI-Powered Financial News Aggregation Backend",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js",
+    "dev:simple": "node --watch server.js",
+    "dev:debug": "nodemon --inspect server.js",
+    "prod": "cross-env NODE_ENV=production node server.js",
+    "prod:pm2": "pm2 start ecosystem.config.js --env production",
+    "prod:stop": "pm2 stop all",
+    "prod:restart": "pm2 restart all",
+    "prod:logs": "pm2 logs",
+    "prod:status": "pm2 status",
+    "prod:delete": "pm2 delete all",
+    "fetch": "node src/scripts/standaloneFetch.js",
+    "fetch:manual": "node -e \"require('./jobs/newsCron').triggerManualFetch().then(() => process.exit(0))\"",
+    "fetch:test": "node scripts/testFetch.js",
+    "fetch:force": "cross-env FORCE_FETCH=true node scripts/standaloneFetch.js",
+    "db:debug": "node scripts/debugDatabase.js",
+    "db:check": "node src/scripts/checkFirestore.js",
+    "db:cleanup": "node scripts/cleanupOldNews.js",
+    "db:optimize": "node src/scripts/cleanupForFreeTier.js",
+    "db:reanalyze": "node src/scripts/reanalyzeSentiment.js",
+    "logs:watch": "tail -f logs/combined.log",
+    "logs:error": "tail -f logs/err.log",
+    "logs:clear": "rm -rf logs/*.log",
+    "health": "curl http://localhost:5000/api/health",
+    "test": "jest --coverage",
+    "test:watch": "jest --watch",
+    "test:api": "jest tests/api --verbose",
+    "test:unit": "jest --testPathPattern=tests/unit",
+    "status": "curl http://localhost:5000/api/status",
+    "test:integration": "jest --testPathPattern=tests/integration",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write \"**/*.{js,json,md}\"",
+    "install:all": "npm install && cd ../fintrend-frontend && npm install",
+    "setup": "npm install && npm run db:check",
+    "clean": "rm -rf node_modules package-lock.json && npm install",
+    "validate": "node -e \"require('./config/validateEnv').validateEnv()\"",
+    "postinstall": "echo '✅ Dependencies installed. Run npm run setup to verify configuration.'"
+  },
+  "keywords": [
+    "finance",
+    "news",
+    "ai",
+    "firestore",
+    "finnhub",
+    "openrouter",
+    "nodejs",
+    "express",
+    "rest-api",
+    "financial-news",
+    "sentiment-analysis",
+    "market-trends"
+  ],
+  "author": {
+    "name": "FinTrend Team",
+    "email": "team@fintrend.com"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/fintrend-backend.git"
+  },
+  "bugs": {
+    "url": "https://github.com/yourusername/fintrend-backend/issues"
+  },
+  "homepage": "https://github.com/yourusername/fintrend-backend#readme",
+  "dependencies": {
+    "axios": "^1.6.2",
+    "compression": "^1.8.1",
+    "cors": "^2.8.5",
+    "cron-parser": "^4.9.0",
+    "dotenv": "^16.6.1",
+    "express": "^4.21.2",
+    "express-rate-limit": "^7.1.5",
+    "firebase-admin": "^12.7.0",
+    "helmet": "^7.1.0",
+    "node-cron": "^3.0.3",
+    "package.json": "^2.0.1",
+    "winston": "^3.11.0"
+  },
+  "devDependencies": {
+    "@types/jest": "^30.0.0",
+    "@types/supertest": "^6.0.3",
+    "cross-env": "^7.0.3",
+    "eslint": "^8.55.0",
+    "jest": "^29.7.0",
+    "nodemon": "^3.1.10",
+    "prettier": "^3.1.0",
+    "supertest": "^7.2.2"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  },
+  "nodemonConfig": {
+    "watch": [
+      "controllers",
+      "routes",
+      "services",
+      "config",
+      "middleware",
+      "models",
+      "utils"
+    ],
+    "ignore": [
+      "logs/**/*",
+      "*.log",
+      "node_modules",
+      ".git",
+      "scripts/**/*",
+      "test/**/*",
+      "coverage/**/*"
+    ],
+    "ext": "js,json",
+    "delay": 1000,
+    "verbose": false,
+    "events": {
+      "start": "echo '🚀 Server starting...'",
+      "crash": "echo '💥 Server crashed - waiting for changes...'",
+      "restart": "echo '🔄 Restarting server...'",
+      "exit": "echo '👋 Server stopped'"
+    }
+  }
+}

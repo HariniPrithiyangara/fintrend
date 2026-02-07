@@ -1,0 +1,206 @@
+// ============================================
+// SERVER.JS - MAIN APPLICATION ENTRY
+// NO HARDCODING - PRODUCTION READY
+// ============================================
+
+const express = require('express');
+const cors = require('cors');
+const helmet = require('helmet');
+const compression = require('compression');
+const { SERVER } = require('./src/config/constants');
+const logger = require('./src/utils/logger');
+const { initializeFirebase, testConnection, shutdown: firebaseShutdown } = require('./src/config/firebase');
+const { errorHandler, notFoundHandler } = require('./src/middleware/error.middleware');
+const { rateLimiter } = require('./src/middleware/rateLimit');
+const { validateEnv } = require('./src/config/validateEnv');
+
+// Validate environment
+validateEnv();
+
+// Import routes
+const newsRoutes = require('./src/routes/news.routes');
+const analyticsRoutes = require('./src/routes/analytics.routes');
+const authRoutes = require('./src/routes/auth.routes');
+
+
+// Import cron
+const { scheduleNewsFetch, initialFetchIfRequired, getCronStatus, stopCron } = require('./src/jobs/newsCron');
+
+// Create Express app
+const app = express();
+
+// ========== MIDDLEWARE ==========
+
+// Security
+app.use(helmet({
+  contentSecurityPolicy: SERVER.IS_PROD,
+  crossOriginEmbedderPolicy: SERVER.IS_PROD
+}));
+
+// CORS
+app.use(cors({
+  origin: SERVER.FRONTEND_URL,
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
+// Body parsing
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Compression
+app.use(compression());
+
+// Rate limiting
+app.use('/api/', rateLimiter);
+
+// Request logging
+app.use((req, res, next) => {
+  const start = Date.now();
+  res.on('finish', () => {
+    const duration = Date.now() - start;
+    if (SERVER.IS_DEV || duration > 1000) {
+      logger.http(`${req.method} ${req.path} ${res.statusCode} - ${duration}ms`);
+    }
+  });
+  next();
+});
+
+// Root route
+app.get('/', (req, res) => {
+  res.json({
+    message: 'Welcome to FinTrend API',
+    status: 'running',
+    docs: '/api/docs',
+    health: '/api/health'
+  });
+});
+
+// ========== ROUTES ==========
+
+// Health check
+app.get('/api/health', async (req, res) => {
+  const healthy = await testConnection();
+  const cronStatus = getCronStatus();
+
+  res.status(healthy ? 200 : 503).json({
+    status: healthy ? 'OK' : 'DEGRADED',
+    timestamp: new Date().toISOString(),
+    uptime: Math.floor(process.uptime()),
+    environment: SERVER.NODE_ENV,
+    checks: {
+      firestore: healthy,
+      cron: cronStatus
+    }
+  });
+});
+
+// API routes
+app.use('/api/news', newsRoutes);
+app.use('/api/analytics', analyticsRoutes);
+app.use('/api/auth', authRoutes);
+
+
+// 404 handler
+app.use(notFoundHandler);
+
+// Error handler (must be last)
+app.use(errorHandler);
+
+// ========== STARTUP ==========
+
+async function startServer() {
+  try {
+    // Initialize Firebase
+    logger.info('🔥 Initializing Firebase...');
+    initializeFirebase();
+
+    // Test connection
+    const connected = await testConnection();
+    if (!connected) {
+      throw new Error('Firestore connection failed');
+    }
+
+    // Run initial fetch if configured (non-blocking)
+    initialFetchIfRequired().catch(err => logger.error('Initial fetch failed:', err));
+
+    // Schedule cron if enabled
+    scheduleNewsFetch();
+
+    // Start server
+    const server = app.listen(SERVER.PORT, () => {
+      logger.info('');
+      logger.info('═'.repeat(60));
+      logger.info(`✅ FinTrend Backend - ${SERVER.NODE_ENV.toUpperCase()}`);
+      logger.info(`📡 Server: http://localhost:${SERVER.PORT}`);
+      logger.info(`❤️  Health: http://localhost:${SERVER.PORT}/api/health`);
+      logger.info(`🔧 Environment: ${SERVER.NODE_ENV}`);
+      logger.info(`🌐 Frontend: ${SERVER.FRONTEND_URL}`);
+      logger.info('═'.repeat(60));
+      logger.info('');
+    });
+
+    // Graceful shutdown handler
+    const gracefulShutdown = async (signal) => {
+      logger.info(`📴 ${signal} received - Starting graceful shutdown...`);
+
+      // Close HTTP server
+      server.close(() => {
+        logger.info('✅ HTTP server closed');
+      });
+
+      // Stop cron jobs
+      try {
+        await stopCron();
+        logger.info('✅ Cron jobs stopped');
+      } catch (error) {
+        logger.error('⚠️ Error stopping cron:', error);
+      }
+
+      // Shutdown Firebase
+      try {
+        await firebaseShutdown();
+        logger.info('✅ Firebase shutdown complete');
+      } catch (error) {
+        logger.error('⚠️ Error shutting down Firebase:', error);
+      }
+
+      // Force exit after timeout
+      setTimeout(() => {
+        logger.error('⚠️ Forced shutdown after timeout');
+        process.exit(1);
+      }, SERVER.SHUTDOWN_TIMEOUT_MS);
+
+      logger.info('✅ Graceful shutdown complete');
+      process.exit(0);
+    };
+
+    // Listen for termination signals
+    process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+    process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
+    // Handle uncaught exceptions
+    process.on('uncaughtException', (error) => {
+      logger.error('💥 Uncaught Exception:', error);
+      gracefulShutdown('UNCAUGHT_EXCEPTION');
+    });
+
+    // Handle unhandled promise rejections
+    process.on('unhandledRejection', (reason, promise) => {
+      logger.error('💥 Unhandled Rejection at:', promise, 'reason:', reason);
+      gracefulShutdown('UNHANDLED_REJECTION');
+    });
+
+  } catch (error) {
+    logger.error('❌ Server startup failed:', error);
+    process.exit(1);
+  }
+}
+
+// Start the server
+if (require.main === module) {
+  startServer();
+}
+
+module.exports = app;

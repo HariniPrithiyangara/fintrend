@@ -1,0 +1,29 @@
+@import "tailwindcss";
+
+@layer base {
+  body {
+    @apply bg-gray-50 text-gray-900;
+  }
+}
+
+@layer components {
+  .news-card {
+    @apply bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow;
+  }
+
+  .impact-high {
+    @apply bg-red-100 text-red-800 border-red-200;
+  }
+
+  .impact-medium {
+    @apply bg-yellow-100 text-yellow-800 border-yellow-200;
+  }
+
+  .sentiment-positive {
+    @apply text-green-600;
+  }
+
+  .sentiment-negative {
+    @apply text-red-600;
+  }
+}
