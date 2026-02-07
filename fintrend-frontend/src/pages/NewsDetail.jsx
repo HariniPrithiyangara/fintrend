@@ -4,7 +4,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import Sidebar from '../components/Sidebar';
 import TopBar from '../components/TopBar';
 import { AuthContext } from '../context/AuthContext';
-import { fetchArticleById } from '../api/newsAPI';
+import { fetchArticleById } from '../api/newsApi';
 import formatDate from '../utils/formatDate';
 
 const NewsDetail = () => {

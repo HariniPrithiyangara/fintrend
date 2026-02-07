@@ -1,7 +1,7 @@
 // src/pages/Search.jsx
 import React, { useEffect, useState, useContext } from 'react';
 import { AppContext } from '../context/AppContext';
-import { fetchNews } from '../api/newsAPI';
+import { fetchNews } from '../api/newsApi';
 import NewsCard from '../components/NewsCard';
 
 const SearchPage = () => {
