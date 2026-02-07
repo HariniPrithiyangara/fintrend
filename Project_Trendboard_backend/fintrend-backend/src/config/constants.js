@@ -8,7 +8,12 @@ require('dotenv').config();
 const getEnv = (key, defaultValue = null) => {
   const value = process.env[key];
   if (value === undefined && defaultValue === null) {
-    throw new Error(`❌ Missing required environment variable: ${key}`);
+    // Check if we are in production - we want to be strict in production but relaxed in dev
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error(`❌ Missing required environment variable: ${key}`);
+    }
+    console.warn(`⚠️ Warning: Missing environment variable ${key}. Using null.`);
+    return null;
   }
   return value || defaultValue;
 };
@@ -21,17 +26,17 @@ const getEnvNumber = (key, defaultValue) => {
 const getEnvBoolean = (key, defaultValue = false) => {
   const value = process.env[key];
   if (!value) return defaultValue;
-  return ['true', '1', 'yes'].includes(value.toLowerCase());
+  return ['true', '1', 'yes', 'on'].includes(value.toLowerCase());
 };
 
 module.exports = {
   SERVER: {
     PORT: getEnvNumber('PORT', 5000),
-    NODE_ENV: getEnv('NODE_ENV', 'development'),
+    NODE_ENV: process.env.NODE_ENV || 'production',
     FRONTEND_URL: getEnv('FRONTEND_URL', 'http://localhost:5173'),
     SHUTDOWN_TIMEOUT_MS: getEnvNumber('SHUTDOWN_TIMEOUT_MS', 10000),
-    IS_DEV: getEnv('NODE_ENV', 'development') === 'development',
-    IS_PROD: getEnv('NODE_ENV', 'development') === 'production'
+    IS_DEV: (process.env.NODE_ENV || 'production') === 'development',
+    IS_PROD: (process.env.NODE_ENV || 'production') === 'production'
   },
 
   FIRESTORE: {

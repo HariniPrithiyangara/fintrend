@@ -132,11 +132,16 @@ async function startServer() {
     const server = app.listen(SERVER.PORT, () => {
       logger.info('');
       logger.info('═'.repeat(60));
-      logger.info(`✅ FinTrend Backend - ${SERVER.NODE_ENV.toUpperCase()}`);
-      logger.info(`📡 Server: http://localhost:${SERVER.PORT}`);
-      logger.info(`❤️  Health: http://localhost:${SERVER.PORT}/api/health`);
-      logger.info(`🔧 Environment: ${SERVER.NODE_ENV}`);
-      logger.info(`🌐 Frontend: ${SERVER.FRONTEND_URL}`);
+      const PORT = process.env.PORT || 5000;
+      const NODE_ENV = process.env.NODE_ENV || 'production'; // Default to production on cloud
+
+      logger.info(`Rate limiter: ${process.env.RATE_LIMIT_MAX || 100} requests per 900s`);
+
+      // Validation
+      console.log('✅ Environment validation complete');
+      console.log(`🔧 Environment: ${NODE_ENV}`);
+      console.log(`📡 Server Port: ${PORT}`);
+      console.log(`🌐 Frontend URL: ${process.env.FRONTEND_URL || 'Not Set'}`);
       logger.info('═'.repeat(60));
       logger.info('');
     });
