@@ -1,14 +1,15 @@
 // ============================================
-// FIREBASE CONFIGURATION - SIMPLIFIED PROD
+// FIREBASE CONFIGURATION - STRICT ENV ONLY
 // ============================================
 
+require('dotenv').config(); // Ensure env vars are loaded
 const admin = require('firebase-admin');
 const logger = require('../utils/logger');
 
 let db = null;
 let initialized = false;
 
-// Helper to fix PEM keys
+// Helper to fix PEM keys (handles newlines and quotes)
 const fixPrivateKey = (key) => {
   if (!key) return null;
   let fixed = key.trim();
@@ -18,7 +19,7 @@ const fixPrivateKey = (key) => {
     fixed = fixed.substring(1, fixed.length - 1);
   }
 
-  // Handle escaped newlines (e.g. from Render UI)
+  // Handle escaped newlines (common in Render/Vercel)
   fixed = fixed.replace(/\\n/g, '\n');
 
   // Ensure header/footer
@@ -35,32 +36,25 @@ const initializeFirebase = () => {
   if (initialized) return db;
 
   try {
-    let credential = null;
-
-    // 1. Try Individual Fields (Production Standard)
+    // 1. Load variables from Environment ONLY
     const projectId = process.env.FIRESTORE_PROJECT_ID;
     const clientEmail = process.env.FIRESTORE_CLIENT_EMAIL;
     const privateKey = process.env.FIRESTORE_PRIVATE_KEY;
 
-    if (projectId && clientEmail && privateKey) {
-      credential = admin.credential.cert({
-        projectId,
-        clientEmail,
-        privateKey: fixPrivateKey(privateKey)
-      });
-      logger.info('✅ Loaded credentials from individual FIRESTORE_* variables');
+    // 2. Debug Logging (Privacy Safe)
+    if (!projectId) logger.warn('⚠️ FIRESTORE_PROJECT_ID is missing');
+    if (!clientEmail) logger.warn('⚠️ FIRESTORE_CLIENT_EMAIL is missing');
+    if (!privateKey) logger.warn('⚠️ FIRESTORE_PRIVATE_KEY is missing');
+
+    if (!projectId || !clientEmail || !privateKey) {
+      throw new Error('Missing one or more required Firebase environment variables');
     }
 
-    // 2. Fallback to local file (Development)
-    if (!credential) {
-      try {
-        const serviceAccount = require('../../serviceAccountKey.json');
-        credential = admin.credential.cert(serviceAccount);
-        logger.info('✅ Loaded credentials from serviceAccountKey.json');
-      } catch (err) {
-        throw new Error('Missing Firebase Credentials. Set FIRESTORE_PROJECT_ID, FIRESTORE_CLIENT_EMAIL, and FIRESTORE_PRIVATE_KEY.');
-      }
-    }
+    const credential = admin.credential.cert({
+      projectId,
+      clientEmail,
+      privateKey: fixPrivateKey(privateKey)
+    });
 
     if (!admin.apps.length) {
       admin.initializeApp({ credential });
@@ -69,8 +63,9 @@ const initializeFirebase = () => {
     db = admin.firestore();
     db.settings({ ignoreUndefinedProperties: true, merge: true });
     initialized = true;
-    logger.info('🔥 Firebase initialized successfully');
+    logger.info(`🔥 Firebase initialized for project: ${projectId}`);
     return db;
+
   } catch (error) {
     logger.error('❌ Firebase initialization failed:', error.message);
     throw error;
