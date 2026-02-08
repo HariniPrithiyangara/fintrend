@@ -9,6 +9,7 @@ const Profile = lazy(() => import("./pages/Profile"));
 const Login = lazy(() => import("./pages/Login"));
 const Signup = lazy(() => import("./pages/Signup"));
 const SearchPage = lazy(() => import("./pages/SearchPage"));
+// ✅ Protected Route Component
 function ProtectedRoute({ children }) {
   const { user, loading } = useContext(AuthContext);
   if (loading)
@@ -19,6 +20,14 @@ function ProtectedRoute({ children }) {
     );
   return user ? children : <Navigate to="/" replace />;
 }
+
+// ✅ Public Route Wrapper (Redirects to dashboard if logged in)
+function PublicRoute({ children }) {
+  const { user, loading } = useContext(AuthContext);
+  if (loading) return null;
+  return user ? <Navigate to="/dashboard" replace /> : children;
+}
+
 function AppContent() {
   const { user } = useContext(AuthContext);
   return (
@@ -31,9 +40,17 @@ function AppContent() {
     >
       <Routes>
         {/* PUBLIC ROUTES */}
-        <Route path="/" element={<Login />} />
-        <Route path="/signup" element={<Signup />} />
-        {/* PROTECTED ROUTES */}
+        <Route path="/" element={
+          <PublicRoute>
+            <Login />
+          </PublicRoute>
+        } />
+        <Route path="/signup" element={
+          <PublicRoute>
+            <Signup />
+          </PublicRoute>
+        } />
+        {/* Protected Routes */}
         <Route
           path="/dashboard"
           element={
@@ -72,8 +89,8 @@ function AppContent() {
           path="*"
           element={<Navigate to={user ? "/dashboard" : "/"} replace />}
         />
-      </Routes>
-    </Suspense>
+      </Routes >
+    </Suspense >
   );
 }
 export default function App() {
