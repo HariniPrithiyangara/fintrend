@@ -39,7 +39,9 @@ app.use(helmet({
 
 // CORS
 app.use(cors({
-  origin: SERVER.FRONTEND_URL,
+  origin: Array.isArray(SERVER.FRONTEND_URL)
+    ? SERVER.FRONTEND_URL
+    : SERVER.FRONTEND_URL.split(',').map(url => url.trim()),
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']

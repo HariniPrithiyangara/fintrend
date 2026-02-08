@@ -6,23 +6,23 @@ const logger = require('./logger');
 
 async function chunkDelete(db, query, batchSize = 500) {
   let totalDeleted = 0;
-  
+
   try {
     while (true) {
       const snapshot = await query.limit(batchSize).get();
-      
+
       if (snapshot.empty) break;
-      
+
       const batch = db.batch();
       snapshot.docs.forEach(doc => batch.delete(doc.ref));
-      
+
       await batch.commit();
       totalDeleted += snapshot.size;
-      
+
       logger.debug(`Deleted batch: ${snapshot.size}`);
       await new Promise(resolve => setTimeout(resolve, 500));
     }
-    
+
     logger.info(`Total deleted: ${totalDeleted}`);
     return totalDeleted;
   } catch (error) {
@@ -33,7 +33,7 @@ async function chunkDelete(db, query, batchSize = 500) {
 
 async function enqueueEnrichment(db, payload) {
   const queue = process.env.ENRICHMENT_QUEUE_COLLECTION || 'enrichmentQueue';
-  
+
   try {
     await db.collection(queue).add({
       ...payload,
@@ -42,7 +42,7 @@ async function enqueueEnrichment(db, payload) {
       createdAt: Date.now(),
       updatedAt: Date.now()
     });
-    
+
     logger.debug('Enqueued enrichment:', payload.articleId);
   } catch (error) {
     logger.error('Enqueue failed:', error);
@@ -53,10 +53,10 @@ async function enqueueEnrichment(db, payload) {
 async function acquireLock(db, key, ttl = 600000) {
   const lockRef = db.collection('locks').doc(key);
   const now = Date.now();
-  
+
   try {
     const snap = await lockRef.get();
-    
+
     if (!snap.exists) {
       await lockRef.set({
         owner: process.pid || 'unknown',
@@ -66,7 +66,7 @@ async function acquireLock(db, key, ttl = 600000) {
       logger.debug(`Lock acquired: ${key}`);
       return true;
     }
-    
+
     const data = snap.data();
     if (!data.leaseUntil || data.leaseUntil < now) {
       await lockRef.set({
@@ -77,10 +77,14 @@ async function acquireLock(db, key, ttl = 600000) {
       logger.debug(`Lock renewed: ${key}`);
       return true;
     }
-    
+
     logger.debug(`Lock held: ${key}`);
     return false;
   } catch (error) {
+    if (error.code === 8 || error.message?.includes('Quota exceeded')) {
+      logger.warn('acquireLock skipped: Firestore Quota Exceeded. Cron job will not run.');
+      return false; // Safely fail to acquire lock without crashing
+    }
     logger.error('acquireLock error:', error);
     return false;
   }
@@ -91,6 +95,10 @@ async function releaseLock(db, key) {
     await db.collection('locks').doc(key).delete();
     logger.debug(`Lock released: ${key}`);
   } catch (error) {
+    if (error.code === 8 || error.message?.includes('Quota exceeded')) {
+      logger.warn('releaseLock skipped: Firestore Quota Exceeded.');
+      return;
+    }
     logger.error('releaseLock error:', error);
   }
 }
