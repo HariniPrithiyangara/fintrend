@@ -38,13 +38,31 @@ app.use(helmet({
 }));
 
 // CORS
+// CORS
 app.use(cors({
-  origin: Array.isArray(SERVER.FRONTEND_URL)
-    ? SERVER.FRONTEND_URL
-    : SERVER.FRONTEND_URL.split(',').map(url => url.trim()),
+  origin: function (origin, callback) {
+    const allowedOrigins = Array.isArray(SERVER.FRONTEND_URL)
+      ? SERVER.FRONTEND_URL
+      : (SERVER.FRONTEND_URL || '').split(',').map(url => url.trim());
+
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+
+    if (allowedOrigins.indexOf(origin) !== -1 || allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    } else {
+      logger.warn(`⚠️ CORS Blocked: Origin '${origin}' not in allowed list: ${allowedOrigins.join(', ')}`);
+      // For debugging, currently being permissible if it looks like Vercel
+      if (origin.includes('vercel.app') || origin.includes('localhost')) {
+        logger.info(`⚠️ Temporarily allowing unlisted origin: ${origin}`);
+        return callback(null, true);
+      }
+      return callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  allowedHeaders: ['Content-Type', 'Authorization', 'Origin', 'Accept']
 }));
 
 // Body parsing
