@@ -33,8 +33,10 @@ const app = express();
 
 // Security
 app.use(helmet({
-  contentSecurityPolicy: SERVER.IS_PROD,
-  crossOriginEmbedderPolicy: SERVER.IS_PROD
+  contentSecurityPolicy: false,
+  crossOriginEmbedderPolicy: false,
+  crossOriginOpenerPolicy: false,
+  crossOriginResourcePolicy: false
 }));
 
 // CORS
