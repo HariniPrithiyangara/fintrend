@@ -16,26 +16,18 @@ exports.getArticles = asyncHandler(async (req, res) => {
 
   logger.debug('getArticles:', { category, search, limit, impact });
 
-  try {
-    const articles = await newsService.getArticles({
-      category,
-      search,
-      impact,
-      limit: parseInt(limit, 10)
-    });
+  const articles = await newsService.getArticles({
+    category,
+    search,
+    impact,
+    limit: parseInt(limit, 10)
+  });
 
-    res.json({
-      success: true,
-      count: articles.length,
-      data: articles
-    });
-  } catch (error) {
-    if (error.code === 8 || error.message?.includes('Quota exceeded')) {
-      logger.warn('⚠️ Firestore Quota Exceeded (Read). Returning empty list.');
-      return res.json({ success: true, count: 0, data: [], warning: 'FS_QUOTA_EXCEEDED' });
-    }
-    throw error;
-  }
+  res.json({
+    success: true,
+    count: articles.length,
+    data: articles
+  });
 });
 
 /**
@@ -100,16 +92,8 @@ exports.searchArticles = asyncHandler(async (req, res) => {
 exports.getCategoryStats = asyncHandler(async (req, res) => {
   logger.debug('getCategoryStats');
 
-  try {
-    const stats = await newsService.getCategoryStats();
-    res.json({ success: true, data: stats });
-  } catch (error) {
-    if (error.code === 8 || error.message?.includes('Quota exceeded')) {
-      logger.warn('⚠️ Firestore Quota Exceeded (Stats). Returning empty stats.');
-      return res.json({ success: true, data: {}, warning: 'FS_QUOTA_EXCEEDED' });
-    }
-    throw error;
-  }
+  const stats = await newsService.getCategoryStats();
+  res.json({ success: true, data: stats });
 });
 
 /**

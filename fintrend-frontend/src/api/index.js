@@ -10,16 +10,28 @@ const API_LOCAL = 'http://localhost:5000/api';
 const API_PROD = 'https://fintrend-12.onrender.com/api';
 
 // Logic: Use Env Var -> Then Dev/Prod Logic -> Fallback
-let API_URL = import.meta.env.VITE_API_URL;
+// Logic: Use Env Var -> Split -> Select based on mode
+let envUrls = (import.meta.env.VITE_API_URL || '').split(',').map(u => u.trim()).filter(Boolean);
 
-if (!API_URL) {
+let API_URL;
+
+if (envUrls.length > 0) {
+  if (import.meta.env.MODE === 'development') {
+    // Prefer localhost in dev if available, otherwise first one
+    API_URL = envUrls.find(u => u.includes('localhost')) || envUrls[0];
+  } else {
+    // Prefer non-localhost in prod, otherwise first one
+    API_URL = envUrls.find(u => !u.includes('localhost')) || envUrls[0];
+  }
+} else {
+  // Fallback if .env is empty/missing
   API_URL = import.meta.env.MODE === 'development' ? API_LOCAL : API_PROD;
 }
 
 console.log('🌐 API Target:', API_URL);
 
 if (!API_URL) {
-  console.error('❌ VITE_API_URL is missing in .env file!');
+  console.error('❌ VITE_API_URL is missing or invalid!');
 }
 
 // Create axios instance

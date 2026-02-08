@@ -14,6 +14,13 @@ class NewsService {
   constructor() {
     this.db = null;
     this.collection = FIRESTORE.COLLECTION;
+
+    // In-memory cache for fallback when quota exceeded
+    this.localCache = {
+      articles: [],
+      stats: {},
+      lastUpdated: 0
+    };
   }
 
   getDb() {
@@ -83,10 +90,10 @@ class NewsService {
             {
               role: 'user',
               content: `Analyze this financial news and determine its market sentiment:
-
+ 
 Title: ${article.headline || article.title}
 Content: ${(article.summary || '').substring(0, 500)}
-
+ 
 Return JSON with:
 {
   "summary": "2-3 sentence summary",
@@ -95,7 +102,7 @@ Return JSON with:
   "tags": ["TICKER1", "KEYWORD2"] (max 5, uppercase stock tickers or key terms),
   "category": "Stocks|IPOs|Markets|Crypto"
 }
-
+ 
 Text: ${text.substring(0, 1500)}`
             }
           ]
@@ -234,6 +241,14 @@ Text: ${text.substring(0, 1500)}`
       const db = this.getDb();
       await db.collection(this.collection).doc(String(article.id)).set(doc, { merge: true });
 
+      // Update local cache if pertinent
+      this.localCache.articles.unshift(doc);
+      // Keep cache size manageable
+      if (this.localCache.articles.length > 200) {
+        this.localCache.articles = this.localCache.articles.slice(0, 200);
+      }
+      this.localCache.lastUpdated = Date.now();
+
       logger.info(`✅ Saved: ${doc.id} [${doc.category}]`);
       return { success: true, doc };
     } catch (error) {
@@ -338,6 +353,21 @@ Text: ${text.substring(0, 1500)}`
         ...doc.data()
       }));
 
+      // Cache successful reads (only if general or broad enough to be useful)
+      if (articles.length > 0) {
+        if ((!category || category === 'All News') && !search && !impact) {
+          this.localCache.articles = articles;
+          this.localCache.lastUpdated = Date.now();
+        } else {
+          // Merge into cache? Or just leave it?
+          // Simple approach: prefer caching the "All News" view. 
+          // If we have nothing in cache, might as well store this.
+          if (this.localCache.articles.length === 0) {
+            this.localCache.articles = articles;
+          }
+        }
+      }
+
       // Client-side sorting if needed
       if (needsClientSort) {
         articles.sort((a, b) => (b.datetime || 0) - (a.datetime || 0));
@@ -373,6 +403,36 @@ Text: ${text.substring(0, 1500)}`
       logger.debug(`getArticles: returned ${articles.length} articles (category: ${category || 'all'})`);
       return articles;
     } catch (error) {
+      // HANDLE QUOTA EXCEEDED
+      if (error.code === 8 || error.message?.includes('Quota exceeded')) {
+        logger.warn('⚠️ Firestore Quota Exceeded (Read). Using Local Cache.');
+
+        let articles = [...this.localCache.articles];
+        const { category, search, impact, limit = 100 } = options;
+
+        // Apply filters to cached data
+        if (category && category !== 'All News') {
+          articles = articles.filter(a => a.category === category);
+        }
+
+        articles.sort((a, b) => (b.datetime || 0) - (a.datetime || 0));
+
+        if ((search && search.trim()) || impact) {
+          const searchLower = search ? search.toLowerCase().trim() : '';
+          articles = articles.filter(article => {
+            if (impact && article.impact !== impact) return false;
+            if (searchLower) {
+              const titleMatch = article.title?.toLowerCase().includes(searchLower);
+              const summaryMatch = article.summary?.toLowerCase().includes(searchLower);
+              if (!titleMatch && !summaryMatch) return false;
+            }
+            return true;
+          });
+        }
+
+        return articles.slice(0, limit);
+      }
+
       logger.error('getArticles error:', error);
       throw error;
     }
@@ -395,6 +455,11 @@ Text: ${text.substring(0, 1500)}`
         ...doc.data()
       };
     } catch (error) {
+      if (error.code === 8 || error.message?.includes('Quota exceeded')) {
+        logger.warn('⚠️ Firestore Quota Exceeded (Read Single). Checking Cache.');
+        const cached = this.localCache.articles.find(a => a.id === String(articleId));
+        return cached || null;
+      }
       logger.error('getArticleById error:', error);
       throw error;
     }
@@ -427,9 +492,16 @@ Text: ${text.substring(0, 1500)}`
         stats[category] = (stats[category] || 0) + 1;
       });
 
+      // Update cache
+      this.localCache.stats = stats;
+
       logger.debug('Category stats:', stats);
       return stats;
     } catch (error) {
+      if (error.code === 8 || error.message?.includes('Quota exceeded')) {
+        logger.warn('⚠️ Firestore Quota Exceeded (Stats). Using Local Cache.');
+        return this.localCache.stats || {};
+      }
       logger.error('getCategoryStats error:', error);
       return {};
     }
