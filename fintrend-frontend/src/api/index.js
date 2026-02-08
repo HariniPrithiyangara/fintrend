@@ -28,6 +28,11 @@ if (envUrls.length > 0) {
   API_URL = import.meta.env.MODE === 'development' ? API_LOCAL : API_PROD;
 }
 
+// Ensure API_URL ends with /api to avoid 404s
+if (API_URL && !API_URL.endsWith('/api')) {
+  API_URL = `${API_URL.replace(/\/+$/, '')}/api`;
+}
+
 console.log('🌐 API Target:', API_URL);
 
 if (!API_URL) {
@@ -37,7 +42,7 @@ if (!API_URL) {
 // Create axios instance
 const apiClient = axios.create({
   baseURL: API_URL,
-  timeout: 15000,
+  timeout: 60000, // Increased to 60s for Render cold starts
   headers: {
     'Content-Type': 'application/json'
   }
